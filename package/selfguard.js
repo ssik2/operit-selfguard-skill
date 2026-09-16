@@ -222,9 +222,9 @@ function buildSegments(content) {
         { text: "\n<<<<< [内容过长，仅展示头/尾抽样] >>>>>\n" + tail, base: headNewlines + 1 }
     ];
 }
-async function readSegments(path) {
+async function readSegments(path, env) {
     try {
-        const r = normalizeResult(await Tools.Files.read(path));
+        const r = normalizeResult(await Tools.Files.read({ path: path, environment: env }));
         const content = (r && typeof r.content === "string") ? r.content : (r && typeof r === "string" ? r : "");
         return { ok: true, segments: buildSegments(content) };
     }
@@ -326,7 +326,7 @@ async function scanSource(path, env, maxDepth, maxFiles, maxFindings) {
     const used = files.length <= fileLimit ? files : files.slice(0, fileLimit);
     for (let i = 0; i < used.length; i += 1) {
         const f = used[i];
-        const segRes = await readSegments(f);
+        const segRes = await readSegments(f, env);
         if (!segRes.ok) {
             fileErrors.push(f + " :: " + (segRes.error || "读取失败"));
             continue;
@@ -587,7 +587,7 @@ async function probeArtifact(path, env) {
         return { action: "probe_artifact", target: path, ok: false, message: "文件不存在，请检查路径。", disclaimer: DISCLAIMER_ZH };
     }
     const info = await fsInfo(path, env);
-    const segRes = await readSegments(path);
+    const segRes = await readSegments(path, env);
     if (!segRes.ok) {
         const asContainer = await probeBinaryContainer(path, env, info, started);
         if (asContainer) {

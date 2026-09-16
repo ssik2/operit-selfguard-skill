@@ -1,0 +1,8 @@
+{
+  "action": "scan_source",
+  "path": "/sdcard/Download/your_project",
+  "environment": "android",
+  "max_depth": 8,
+  "max_files": 300,
+  "max_findings": 150
+}

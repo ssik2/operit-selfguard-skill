@@ -6,9 +6,25 @@
 
 写的初衷是发版前自己过一遍，别把密钥打进包里，也别让人反编译后一眼就能看清源码结构。所以它只做静态扫描，不联网、不改文件。
 
-## 指令
+## 怎么在 Operit 里调用
 
-直接把指令打进对话框：
+先说平台机制，这决定你怎么敲：**Operit 输入框的 `/` 是引用（mention）选择器，不是命令行解析器**。相关实现在 `WorkspaceFileSelector.kt` 的面板，和 `ChatViewModel.findActiveMentionTrigger`：
+
+- 光标所在的“不含空格的片段”里，最近的那个 `/`（在行首，或前面是空格）算触发符；
+- `/` 之后到光标的那串字，被当成**搜索词**，去匹配 工具包 / Skill 包 / MCP 包 的包名、标题、描述；
+- 搜索词为空就列出全部包，匹配不到就显示“没有匹配的包”；
+- 选中一项后，输入框写入 `/包名 `，并把该包的内容（对本技能就是 `SKILL.md`）作为**附件**挂到这条消息上。
+
+**方式 A：斜杠唤起（推荐）**
+
+```text
+1. 输入 /
+2. 在面板里选中 selfguard_audit（也可以先打 sel 过滤）
+3. 空格之后写需求，例如 scan /sdcard/Download/myproject --depth 12
+4. 发送
+```
+
+**方式 B：一行写完，把整条指令打进对话框**
 
 ```text
 /selfguard                        显示用法速查
@@ -38,7 +54,9 @@
 /sg /sdcard/Download/myproject --depth 12
 ```
 
-> 机制说明：Operit 自身没有斜杠指令解析器，`/selfguard` 不是平台功能。它是靠 Skill 的 `description` 常驻在 AI 上下文里实现的——你敲这个前缀，AI 就知道该按技能定义去调引擎。用起来和电脑版的 slash command 一致，实现路径不同。
+> 方式 B 的注意点：这行里有以 `/` 开头的路径，输入框上方的面板会跟着弹出来，并且按“光标前最后一段路径”当搜索词，于是显示“没有匹配的包”“暂无可用包”一类提示。这是引用选择器的正常表现，不是报错，**不影响消息发送**：忽略它，直接点发送就行，路径照原样写，不用为躲提示改写法。
+>
+> 另外，`/selfguard` 这套字符串规范本身不是 Operit 平台功能（平台没有斜杠指令解析器）。它是靠 Skill 的 `description` 常驻在 AI 上下文里实现的：你敲这个前缀，AI 就按技能定义去调引擎。所以它坏不了、也不依赖平台升级，但前提是技能开关开着、`SKILL.md` 在目录里。
 
 不想用指令，就正常说话：「扫一下这个项目有没有写死的密钥」「发版前做个安全自检」「这个 toolpkg 别人能不能还原出源码」。同样会走本技能。
 
@@ -64,7 +82,7 @@
 
 技能和引擎是两个东西，要分开装。
 
-**第一步，装技能。** 下载 `dist/selfguard_audit-skill-v1.1.0.zip` 解压，或者直接把仓库里的 `selfguard_audit/` 整个拷过去，最终结构是：
+**第一步，装技能。** 下载 `dist/selfguard_audit-skill-v1.1.1.zip` 解压，或者直接把仓库里的 `selfguard_audit/` 整个拷过去，最终结构是：
 
 ```text
 /sdcard/Download/Operit/skills/selfguard_audit/
@@ -76,7 +94,7 @@
     └── POLICY.md
 ```
 
-然后在 Operit 里打开 **包管理 → 技能 → 刷新**，列表里会出现 `selfguard_audit`。条目右边的开关决定 AI 会不会自动用它。
+然后在 Operit 里打开 **包管理 → 技能 → 刷新**，列表里会出现 `selfguard_audit`。条目右边的开关决定 AI 会不会自动用它。装好之后，在输入框里敲 `/`，面板（标题 Packages）里也能看到这一条，副标题是“Skill 包”。
 
 **第二步，装引擎。** 沙盒包 `selfguard` 才是真正干活的。把 `package/selfguard.js` 导入 Operit，或者直接放到 `Android/data/com.ai.assistance.operit/files/packages/` 下面。
 
@@ -134,8 +152,8 @@ operit_editor:debug_run_sandbox_script(source_path="/sdcard/Download/Operit/skil
 ├── package/
 │   └── selfguard.js              # 检测引擎（沙盒包源码）
 └── dist/
-    ├── selfguard_audit-skill-v1.1.0.zip
-    └── selfguard-audit-src-v1.1.0.zip
+    ├── selfguard_audit-skill-v1.1.1.zip
+    └── selfguard-audit-src-v1.1.1.zip
 ```
 
 ## 想改点什么
@@ -157,6 +175,7 @@ operit_editor:debug_run_sandbox_script(source_path="/sdcard/Download/Operit/skil
 - 可逆性评分是启发式估算，不能替代完整的逆向评估。
 - 二进制探测只读容器目录，不反编译代码。
 - `/selfguard` 是技能层约定，不是 Operit 平台功能；技能开关关掉或技能被删，指令就失效。
+- 输入框里的 `/` 面板是引用选择器，会把斜杠后的整段无空格文本当搜索词。路径里带斜杠时会显示“没有匹配的包”，这是正常现象，不影响发送。
 
 ## 许可
 

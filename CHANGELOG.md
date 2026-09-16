@@ -6,6 +6,7 @@
 - 指令里可直接带 `--depth` / `--files` / `--findings` / `--env` 参数
 - 指令格式写进 `SKILL.md` 的 `description`，靠描述常驻上下文实现（Operit 无原生斜杠解析）
 - README 重写：指令放最前，安装拆成“装技能 / 装引擎”两步，补机制说明
+- 修复 `environment=linux` 时目录能列、文件读不到的问题：`readSegments` 未透传 environment，且 `Files.read` 需用 `{path, environment}` 重载调用
 
 ## 1.0.0 - 2026-09-16
 

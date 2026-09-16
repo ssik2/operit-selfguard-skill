@@ -1,15 +1,49 @@
 ---
 name: selfguard_audit
-description: 自有工程安全自检，用斜杠指令调用。用法：/selfguard scan <路径>（扫源码/工程目录）、/selfguard probe <路径>（免解压探测 .toolpkg/.apk/.zip 并评估可还原程度）、/selfguard report <路径>（汇总加固报告）、/selfguard <路径>（等同 scan）；别名 /sg。可选参数 --depth N --files N --findings N --env linux|android。检查写死的密钥与口令、形如真实凭据的字符串、URL 内嵌 token、弱加密（DES/RC4/ECB/固定 IV、MD5 口令散列）、eval 与 child_process 拼接执行、sourcemap 残留。仅限本人拥有或已获授权的工程。
+description: 自有工程安全自检。扫源码/工程目录里写死的密钥与口令、长得像真凭据的字符串、URL 内嵌 token、弱加密（DES/RC4/ECB/固定 IV、MD5 口令散列）、eval 与 child_process 拼接执行、sourcemap 残留；也能免解压探测 .toolpkg / .apk / .zip 并评估可还原程度、汇总加固报告。在 Operit 里输入 / 后从面板选中本技能即可调用，也可以直接说“安全自检 / 加固体检 + 路径”。接受动作词 scan / probe / report 与参数 --depth / --files / --findings / --env。仅限本人拥有或已获授权的工程。
 ---
 
 # selfguard_audit
 
-对自有或已获授权的工程做一次静态安全自检。触发方式是斜杠指令 `/selfguard`。
+对自有或已获授权的工程做一次静态安全自检。
 
 只做静态扫描：不联网、不改文件、不执行被测代码。误报是有的，尤其“硬编码凭据”一类，正则命中不代表真的是密钥，需要自己判断。
 
-## 指令
+## 在 Operit 里怎么调用
+
+先说清楚平台机制：**Operit 输入框的 `/` 是引用（mention）选择器，不是命令行解析器**。相关源码在 `app/src/main/java/com/ai/assistance/operit/ui/features/chat/webview/WorkspaceFileSelector.kt` 与 `ui/features/chat/viewmodel/ChatViewModel.kt` 的 `findActiveMentionTrigger`。它的实际行为：
+
+- 光标所在的“不含空格的片段”里，最近的那个 `/`（在行首，或前面是空格）算触发符；
+- `/` 之后到光标的那串字，被当作**搜索词**，去匹配 工具包 / Skill 包 / MCP 包 的包名、标题、描述；
+- 搜索词为空 → 列出全部包；匹配不到 → 面板显示“没有匹配的包”；
+- 选中某一项 → 输入框写入 `/包名 `，并把该包的内容（对本技能就是这份 SKILL.md）作为**附件**挂到这条消息上。
+
+所以三种调用方式都能用：
+
+**方式 A：斜杠唤起（推荐，和电脑版一致）**
+
+```text
+1. 输入 /
+2. 在面板里选中 selfguard_audit（也可以先打 sel 过滤）
+3. 空格之后写需求，例如 scan /sdcard/Download/myproject --depth 12
+4. 发送
+```
+
+**方式 B：一行写完**
+
+```text
+/selfguard scan /sdcard/Download/myproject --findings 200
+```
+
+注意：这行里有以 `/` 开头的路径，输入框上方的面板会跟着弹出来，并按“光标前最后一段路径”当搜索词，于是显示“没有匹配的包”。这是引用选择器的正常表现，不是报错，**不影响消息发送，忽略它直接发即可**。不要为了躲开提示去改路径写法，路径照写。
+
+**方式 C：不说斜杠**
+
+直接说人话同样走本技能：「扫一下这个项目有没有写死的密钥」「发版前做个安全自检」「这个 toolpkg 别人能不能还原出源码」。
+
+## 动作与参数
+
+方式 A / C 用自然语言说清动作和路径就行。方式 B 的字符串约定如下——它是写给 AI 读的语义约定，不是平台语法：
 
 ```text
 /selfguard                        显示用法速查
@@ -21,14 +55,13 @@ description: 自有工程安全自检，用斜杠指令调用。用法：/selfgu
 /sg 是 /selfguard 的别名，参数完全一样。
 ```
 
-可选参数（可跟前置或后置）：
+可选参数（可前置或后置）：
 
 ```text
 --depth N       目录扫描最大深度（默认 8）
 --files N       最多扫描文件数（默认 300）
 --findings N    最多返回风险条数（默认 150）
 --env linux     目标在 Linux 侧时指定（默认 android）
-
 例：/selfguard scan /sdcard/Download/myproject --depth 12 --findings 200
 ```
 
@@ -36,7 +69,7 @@ description: 自有工程安全自检，用斜杠指令调用。用法：/selfgu
 
 ## 指令怎么落地
 
-收到 `/selfguard …` 后，先 `use_package("selfguard")`，再按上表映射到三个 action：
+收到斜杠写法、方式 A 的附件、或上述自然语言说法后，先 `use_package("selfguard")`，再按上表映射到三个 action：
 
 | 指令 | 对应调用 |
 |---|---|
@@ -45,6 +78,7 @@ description: 自有工程安全自检，用斜杠指令调用。用法：/selfgu
 | `report` | `selfguard:selfguard  action=report  path=<路径>` |
 
 包未启用时：
+
 - `operit_editor:set_sandbox_package_enabled(package_name="selfguard", enabled=true)`
 - 或重新烧录：`operit_editor:debug_install_js_package(source_path="/sdcard/Download/Operit/dev_package/selfguard/selfguard.js")`
 - 等价备用包：`use_package("pojia_guard")` 后调 `pojia_guard:pojia_guard`
